@@ -6,1267 +6,758 @@
 <title>Vending Machine Controller — Live FSM Visualizer</title>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-/* ── RESET & BASE ─────────────────────────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:        #0a0e14;
-  --bg2:       #0f1520;
-  --bg3:       #141c2b;
-  --border:    #1e2d45;
-  --border2:   #253550;
-  --text:      #c8d8f0;
-  --text2:     #6a84a8;
-  --text3:     #3a5070;
-  --accent:    #00e5ff;
-  --accent2:   #0097aa;
-  --green:     #00ff88;
-  --green2:    #00aa55;
-  --amber:     #ffb300;
-  --amber2:    #cc8800;
-  --red:       #ff4466;
-  --red2:      #aa2233;
-  --purple:    #a855f7;
-  --idle:      #3a5070;
-  --coin:      #ffb300;
-  --ready:     #00e5ff;
-  --disp:      #00ff88;
-  --font-mono: 'Share Tech Mono', monospace;
-  --font-ui:   'Syne', sans-serif;
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e14;--bg2:#0f1520;--bg3:#141c2b;
+  --border:#1e2d45;--border2:#253550;
+  --text:#c8d8f0;--text2:#6a84a8;--text3:#3a5070;
+  --accent:#00e5ff;--accent2:#0097aa;
+  --green:#00ff88;--green2:#00aa55;
+  --amber:#ffb300;--amber2:#cc8800;
+  --red:#ff4466;--red2:#aa2233;
+  --purple:#a855f7;--purple2:#7c3aed;
+  --orange:#ff7c2a;--orange2:#c25000;
+  --idle:#3a5070;--coin:#ffb300;--ready:#00e5ff;
+  --disp:#00ff88;--refund:#ff7c2a;
+  --font-mono:'Share Tech Mono',monospace;
+  --font-ui:'Syne',sans-serif;
 }
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:9999}
 
-html { scroll-behavior: smooth; }
+/* LAYOUT */
+.app{max-width:1420px;margin:0 auto;padding:20px 18px}
+.main-grid{display:grid;grid-template-columns:340px 1fr;gap:14px}
+.left-col,.right-col{display:flex;flex-direction:column;gap:14px}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui);
-  min-height: 100vh;
-  overflow-x: hidden;
-}
+/* HEADER */
+header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.header-left h1{font-size:21px;font-weight:800;letter-spacing:-.5px;color:#fff}
+.header-left h1 span{color:var(--accent)}
+.header-left p{font-size:11px;color:var(--text2);margin-top:3px;font-family:var(--font-mono);letter-spacing:.08em}
+.header-badges{display:flex;gap:7px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.badge{font-family:var(--font-mono);font-size:10px;padding:3px 9px;border-radius:3px;border:1px solid;letter-spacing:.06em}
+.badge-cyan{color:var(--accent);border-color:var(--accent2);background:rgba(0,229,255,.06)}
+.badge-green{color:var(--green);border-color:var(--green2);background:rgba(0,255,136,.06)}
+.badge-amber{color:var(--amber);border-color:var(--amber2);background:rgba(255,179,0,.06)}
+.badge-orange{color:var(--orange);border-color:var(--orange2);background:rgba(255,124,42,.06)}
 
-/* Scanline overlay */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0,0,0,0.03) 2px,
-    rgba(0,0,0,0.03) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
-}
+/* PANELS */
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.panel-header{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.panel-title{font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text2)}
+.panel-title span{color:var(--accent)}
 
-/* ── LAYOUT ───────────────────────────────────────────────────────────────── */
-.app { max-width: 1400px; margin: 0 auto; padding: 24px 20px; }
+/* STATE DISPLAY */
+.state-display{text-align:center;padding:14px}
+.state-label{font-size:10px;font-family:var(--font-mono);letter-spacing:.2em;color:var(--text3);text-transform:uppercase;margin-bottom:6px}
+.state-name{font-size:24px;font-weight:800;letter-spacing:-1px;transition:all .3s ease;line-height:1}
+.state-encoding{font-family:var(--font-mono);font-size:12px;margin-top:5px;color:var(--text2)}
+.state-idle{color:var(--idle)}
+.state-coin{color:var(--coin)}
+.state-ready{color:var(--ready)}
+.state-disp{color:var(--disp)}
+.state-refund{color:var(--orange)}
+@keyframes stateFlash{0%{opacity:0;transform:scale(1.1)}60%{opacity:1;transform:scale(1)}100%{opacity:1}}
+.state-name.flash{animation:stateFlash .35s ease}
 
-/* ── HEADER ───────────────────────────────────────────────────────────────── */
-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 28px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-}
+/* ACC BAR */
+.acc-row{display:flex;align-items:center;gap:9px;padding:9px 13px;border-top:1px solid var(--border)}
+.acc-label{font-size:10px;color:var(--text2);font-family:var(--font-mono);white-space:nowrap}
+.acc-bar-wrap{flex:1;height:7px;background:var(--bg3);border-radius:4px;border:1px solid var(--border);overflow:hidden}
+.acc-bar-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--amber2),var(--amber));transition:width .4s cubic-bezier(.4,0,.2,1)}
+.acc-value{font-family:var(--font-mono);font-size:12px;color:var(--amber);min-width:30px;text-align:right}
 
-.header-left h1 {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-  color: #fff;
-  line-height: 1.2;
-}
+/* REFUND STATUS BAR */
+.refund-row{display:flex;align-items:center;gap:9px;padding:8px 13px;border-top:1px solid var(--border);transition:opacity .3s}
+.refund-label{font-size:10px;color:var(--text2);font-family:var(--font-mono);white-space:nowrap}
+.refund-indicator{flex:1;height:7px;background:var(--bg3);border-radius:4px;border:1px solid var(--border);overflow:hidden;position:relative}
+.refund-pulse{height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,var(--orange2),var(--orange));transition:width .3s}
+.refund-pulse.active{width:100%;animation:refundPulse 1s ease-in-out infinite}
+@keyframes refundPulse{0%,100%{opacity:.6}50%{opacity:1}}
+.refund-status{font-family:var(--font-mono);font-size:10px;color:var(--text3);min-width:44px;text-align:right}
+.refund-status.active{color:var(--orange)}
 
-.header-left h1 span { color: var(--accent); }
+/* CNT */
+.cnt-row{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-top:1px solid var(--border)}
+.cnt-label{font-size:10px;color:var(--text2);font-family:var(--font-mono)}
+.cnt-dots{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:160px}
+.cnt-dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 4px var(--green2);transition:all .3s}
+.cnt-dot.empty{background:var(--border);box-shadow:none}
+.cnt-number{font-family:var(--font-mono);font-size:19px;font-weight:700;color:var(--green);min-width:26px;text-align:right}
 
-.header-left p {
-  font-size: 12px;
-  color: var(--text2);
-  margin-top: 4px;
-  font-family: var(--font-mono);
-  letter-spacing: .08em;
-}
+/* OUTPUTS */
+.outputs-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;padding:13px}
+.output-signal{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 7px;text-align:center;transition:all .25s}
+.output-signal.active-D{border-color:var(--green);background:rgba(0,255,136,.08);box-shadow:0 0 12px rgba(0,255,136,.2)}
+.output-signal.active-R{border-color:var(--orange);background:rgba(255,124,42,.08);box-shadow:0 0 12px rgba(255,124,42,.2)}
+.output-signal.active-E{border-color:var(--red);background:rgba(255,68,102,.08);box-shadow:0 0 12px rgba(255,68,102,.2)}
+.output-name{font-size:17px;font-weight:800;font-family:var(--font-mono);transition:color .25s;color:var(--text3)}
+.output-desc{font-size:9px;color:var(--text3);margin-top:2px;letter-spacing:.06em;text-transform:uppercase}
+.output-val{font-family:var(--font-mono);font-size:12px;margin-top:3px;color:var(--text3);transition:color .25s}
+.output-signal.active-D .output-name,.output-signal.active-D .output-val{color:var(--green)}
+.output-signal.active-R .output-name,.output-signal.active-R .output-val{color:var(--orange)}
+.output-signal.active-E .output-name,.output-signal.active-E .output-val{color:var(--red)}
 
-.header-badges {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
+/* OUTPUT TYPE BADGE */
+.output-type{font-size:8px;padding:1px 5px;border-radius:2px;margin-top:3px;display:inline-block;letter-spacing:.06em}
+.type-mealy{background:rgba(168,85,247,.15);color:var(--purple);border:1px solid rgba(168,85,247,.3)}
+.type-moore{background:rgba(255,124,42,.15);color:var(--orange);border:1px solid rgba(255,124,42,.3)}
 
-.badge {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 3px;
-  border: 1px solid;
-  letter-spacing: .06em;
-}
+/* CONTROLS */
+.controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:13px}
+.ctrl-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:9px 7px;cursor:pointer;transition:all .15s;font-family:var(--font-ui);text-align:left;color:var(--text);position:relative;overflow:hidden}
+.ctrl-btn::after{content:'';position:absolute;inset:0;background:currentColor;opacity:0;transition:opacity .1s}
+.ctrl-btn:active::after{opacity:.08}
+.ctrl-btn:hover{border-color:var(--border2);transform:translateY(-1px)}
+.ctrl-btn:active{transform:translateY(0)}
+.ctrl-btn.full{grid-column:1/-1}
+.ctrl-btn.disabled-btn{opacity:.35;cursor:not-allowed;pointer-events:none}
+.ctrl-name{font-size:12px;font-weight:700;font-family:var(--font-mono)}
+.ctrl-desc{font-size:10px;color:var(--text2);margin-top:2px}
+.ctrl-sig{font-size:9px;font-family:var(--font-mono);color:var(--text3);margin-top:3px}
+.btn-coin{border-left:3px solid var(--amber)}.btn-coin:hover{background:rgba(255,179,0,.06)}
+.btn-select{border-left:3px solid var(--green)}.btn-select:hover{background:rgba(0,255,136,.06)}
+.btn-cancel{border-left:3px solid var(--red)}.btn-cancel:hover{background:rgba(255,68,102,.06)}
+.btn-timeout{border-left:3px solid var(--purple)}.btn-timeout:hover{background:rgba(168,85,247,.06)}
+.btn-refund{border-left:3px solid var(--orange)}.btn-refund:hover{background:rgba(255,124,42,.06)}
+.btn-reset{border-left:3px solid var(--text3)}.btn-reset:hover{background:rgba(255,255,255,.04)}
 
-.badge-cyan  { color: var(--accent); border-color: var(--accent2); background: rgba(0,229,255,.06); }
-.badge-green { color: var(--green);  border-color: var(--green2);  background: rgba(0,255,136,.06); }
-.badge-amber { color: var(--amber);  border-color: var(--amber2);  background: rgba(255,179,0,.06); }
-
-/* ── MAIN GRID ────────────────────────────────────────────────────────────── */
-.main-grid {
-  display: grid;
-  grid-template-columns: 340px 1fr;
-  gap: 16px;
-}
-
-.left-col { display: flex; flex-direction: column; gap: 16px; }
-.right-col { display: flex; flex-direction: column; gap: 16px; }
-
-/* ── PANELS ───────────────────────────────────────────────────────────────── */
-.panel {
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg3);
-}
-
-.panel-title {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-  color: var(--text2);
-}
-
-.panel-title span { color: var(--accent); }
-
-.panel-body { padding: 14px; }
-
-/* ── STATE DISPLAY ────────────────────────────────────────────────────────── */
-.state-display {
-  text-align: center;
-  padding: 16px 14px;
-}
-
-.state-label {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  letter-spacing: .2em;
-  color: var(--text3);
-  text-transform: uppercase;
-  margin-bottom: 8px;
-}
-
-.state-name {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  transition: all .3s ease;
-  line-height: 1;
-}
-
-.state-encoding {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  margin-top: 6px;
-  color: var(--text2);
-}
-
-.state-idle     { color: var(--idle); }
-.state-coin     { color: var(--coin); }
-.state-ready    { color: var(--ready); }
-.state-disp     { color: var(--disp); }
-
-/* ── COIN ACCUMULATOR ─────────────────────────────────────────────────────── */
-.acc-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-}
-
-.acc-label {
-  font-size: 11px;
-  color: var(--text2);
-  font-family: var(--font-mono);
-  white-space: nowrap;
-}
-
-.acc-bar-wrap {
-  flex: 1;
-  height: 8px;
-  background: var(--bg3);
-  border-radius: 4px;
-  border: 1px solid var(--border);
-  overflow: hidden;
-}
-
-.acc-bar-fill {
-  height: 100%;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--amber2), var(--amber));
-  transition: width .4s cubic-bezier(.4,0,.2,1);
-}
-
-.acc-value {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--amber);
-  min-width: 32px;
-  text-align: right;
-}
-
-/* ── CNT DISPLAY ──────────────────────────────────────────────────────────── */
-.cnt-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-}
-
-.cnt-label { font-size: 11px; color: var(--text2); font-family: var(--font-mono); }
-
-.cnt-dots {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  max-width: 200px;
-}
-
-.cnt-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 4px var(--green2);
-  transition: all .3s ease;
-}
-
-.cnt-dot.empty {
-  background: var(--border);
-  box-shadow: none;
-}
-
-.cnt-number {
-  font-family: var(--font-mono);
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--green);
-  min-width: 28px;
-  text-align: right;
-}
-
-/* ── OUTPUT SIGNALS ───────────────────────────────────────────────────────── */
-.outputs-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  padding: 14px;
-}
-
-.output-signal {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 8px;
-  text-align: center;
-  transition: all .25s ease;
-}
-
-.output-signal.active-D { border-color: var(--green);  background: rgba(0,255,136,.08); box-shadow: 0 0 12px rgba(0,255,136,.2); }
-.output-signal.active-R { border-color: var(--accent); background: rgba(0,229,255,.08); box-shadow: 0 0 12px rgba(0,229,255,.2); }
-.output-signal.active-E { border-color: var(--red);    background: rgba(255,68,102,.08); box-shadow: 0 0 12px rgba(255,68,102,.2); }
-
-.output-name {
-  font-size: 18px;
-  font-weight: 800;
-  font-family: var(--font-mono);
-  transition: color .25s;
-}
-
-.output-desc { font-size: 9px; color: var(--text3); margin-top: 2px; letter-spacing: .06em; text-transform: uppercase; }
-.output-val  { font-family: var(--font-mono); font-size: 13px; margin-top: 4px; color: var(--text3); transition: color .25s; }
-
-.output-signal.active-D .output-name { color: var(--green); }
-.output-signal.active-D .output-val  { color: var(--green); }
-.output-signal.active-R .output-name { color: var(--accent); }
-.output-signal.active-R .output-val  { color: var(--accent); }
-.output-signal.active-E .output-name { color: var(--red); }
-.output-signal.active-E .output-val  { color: var(--red); }
-
-/* ── INPUT CONTROLS ───────────────────────────────────────────────────────── */
-.controls-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  padding: 14px;
-}
-
-.ctrl-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 10px 8px;
-  cursor: pointer;
-  transition: all .15s ease;
-  font-family: var(--font-ui);
-  text-align: left;
-  color: var(--text);
-  position: relative;
-  overflow: hidden;
-}
-
-.ctrl-btn::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: currentColor;
-  opacity: 0;
-  transition: opacity .1s;
-}
-
-.ctrl-btn:active::after { opacity: .08; }
-
-.ctrl-btn:hover { border-color: var(--border2); transform: translateY(-1px); }
-.ctrl-btn:active { transform: translateY(0); }
-
-.ctrl-btn.full { grid-column: 1 / -1; }
-
-.ctrl-name { font-size: 13px; font-weight: 700; font-family: var(--font-mono); }
-.ctrl-desc { font-size: 10px; color: var(--text2); margin-top: 2px; }
-.ctrl-sig  { font-size: 10px; font-family: var(--font-mono); color: var(--text3); margin-top: 4px; }
-
-.btn-coin  { border-left: 3px solid var(--amber); }
-.btn-coin:hover  { background: rgba(255,179,0,.06); }
-.btn-select { border-left: 3px solid var(--green); }
-.btn-select:hover { background: rgba(0,255,136,.06); }
-.btn-cancel { border-left: 3px solid var(--red); }
-.btn-cancel:hover { background: rgba(255,68,102,.06); }
-.btn-avail  { border-left: 3px solid var(--accent); }
-.btn-avail:hover { background: rgba(0,229,255,.06); }
-.btn-timeout { border-left: 3px solid var(--purple); }
-.btn-timeout:hover { background: rgba(168,85,247,.06); }
-.btn-reset  { border-left: 3px solid var(--text3); }
-.btn-reset:hover { background: rgba(255,255,255,.04); }
-
-/* Availability toggle */
-.toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-}
-
-.toggle-label { font-size: 12px; color: var(--text2); font-family: var(--font-mono); }
-
-.toggle-switch {
-  position: relative;
-  width: 40px;
-  height: 22px;
-}
-
-.toggle-switch input { opacity: 0; width: 0; height: 0; }
-
-.toggle-slider {
-  position: absolute;
-  inset: 0;
-  background: var(--border);
-  border-radius: 11px;
-  cursor: pointer;
-  transition: .3s;
-}
-
-.toggle-slider::before {
-  content: '';
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  left: 3px;
-  top: 3px;
-  background: var(--text2);
-  border-radius: 50%;
-  transition: .3s;
-}
-
-input:checked + .toggle-slider { background: var(--green2); }
-input:checked + .toggle-slider::before { transform: translateX(18px); background: var(--green); box-shadow: 0 0 6px var(--green); }
+/* Toggle */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:9px 13px;border-top:1px solid var(--border)}
+.toggle-label{font-size:11px;color:var(--text2);font-family:var(--font-mono)}
+.toggle-switch{position:relative;width:38px;height:20px}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:10px;cursor:pointer;transition:.3s}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;left:3px;top:3px;background:var(--text2);border-radius:50%;transition:.3s}
+input:checked+.toggle-slider{background:var(--green2)}
+input:checked+.toggle-slider::before{transform:translateX(18px);background:var(--green);box-shadow:0 0 5px var(--green)}
 
 /* Coin selector */
-.coin-selector {
-  display: flex;
-  gap: 6px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-}
+.coin-selector-wrap{padding:9px 13px 0}
+.coin-selector-label{font-size:9px;color:var(--text3);font-family:var(--font-mono);letter-spacing:.1em;margin-bottom:5px}
+.coin-selector{display:flex;gap:5px}
+.coin-opt{flex:1;padding:6px 3px;border:1px solid var(--border);border-radius:5px;background:var(--bg3);cursor:pointer;font-family:var(--font-mono);font-size:10px;color:var(--text2);text-align:center;transition:all .15s}
+.coin-opt.selected{border-color:var(--amber);background:rgba(255,179,0,.1);color:var(--amber)}
+.coin-opt-label{font-size:8px;color:var(--text3);margin-top:2px}
 
-.coin-opt {
-  flex: 1;
-  padding: 6px 4px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg3);
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text2);
-  text-align: center;
-  transition: all .15s;
-}
+/* FSM */
+.fsm-wrap{padding:12px;display:flex;justify-content:center}
+svg.fsm{width:100%;max-width:600px;height:auto}
 
-.coin-opt.selected {
-  border-color: var(--amber);
-  background: rgba(255,179,0,.1);
-  color: var(--amber);
-}
+/* WAVEFORM */
+.waveform-wrap{padding:12px}
+canvas#waveform{width:100%;height:210px;display:block;border-radius:4px;background:var(--bg);border:1px solid var(--border)}
 
-.coin-opt-label { font-size: 9px; color: var(--text3); margin-top: 2px; }
+/* LOG */
+.log-wrap{padding:0;max-height:180px;overflow-y:auto;font-family:var(--font-mono);font-size:11px}
+.log-wrap::-webkit-scrollbar{width:4px}
+.log-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-entry{display:flex;gap:9px;padding:6px 13px;border-bottom:1px solid var(--border);align-items:flex-start;animation:logIn .2s ease}
+@keyframes logIn{from{opacity:0;background:rgba(0,229,255,.05)}to{opacity:1;background:transparent}}
+.log-time{color:var(--text3);min-width:44px;flex-shrink:0}
+.log-msg{color:var(--text);flex:1}
+.log-state{color:var(--text2);min-width:100px;text-align:right;flex-shrink:0;font-size:10px}
+.log-info .log-msg{color:var(--text2)}
+.log-warn .log-msg{color:var(--amber)}
+.log-error .log-msg{color:var(--red)}
+.log-good .log-msg{color:var(--green)}
+.log-disp .log-msg{color:var(--accent)}
+.log-refund .log-msg{color:var(--orange)}
 
-/* ── FSM DIAGRAM ──────────────────────────────────────────────────────────── */
-.fsm-wrap {
-  padding: 14px;
-  display: flex;
-  justify-content: center;
-}
+.wf-btn{font-size:10px;padding:3px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:3px;cursor:pointer;color:var(--text2);font-family:var(--font-mono);transition:all .15s}
+.wf-btn:hover{border-color:var(--border2);color:var(--text)}
+.panel-header-right{display:flex;gap:6px;align-items:center}
 
-svg.fsm { width: 100%; max-width: 560px; height: auto; }
-
-/* ── WAVEFORM ─────────────────────────────────────────────────────────────── */
-.waveform-wrap { padding: 14px; }
-
-.waveform-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.waveform-title { font-size: 11px; color: var(--text2); font-family: var(--font-mono); letter-spacing: .1em; }
-
-.waveform-controls { display: flex; gap: 6px; }
-
-.wf-btn {
-  font-size: 10px;
-  padding: 3px 8px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  cursor: pointer;
-  color: var(--text2);
-  font-family: var(--font-mono);
-  transition: all .15s;
-}
-
-.wf-btn:hover { border-color: var(--border2); color: var(--text); }
-
-canvas#waveform {
-  width: 100%;
-  height: 220px;
-  display: block;
-  border-radius: 4px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-}
-
-/* ── EVENT LOG ────────────────────────────────────────────────────────────── */
-.log-wrap {
-  padding: 0;
-  max-height: 200px;
-  overflow-y: auto;
-  font-family: var(--font-mono);
-  font-size: 12px;
-}
-
-.log-wrap::-webkit-scrollbar { width: 4px; }
-.log-wrap::-webkit-scrollbar-track { background: transparent; }
-.log-wrap::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
-
-.log-entry {
-  display: flex;
-  gap: 10px;
-  padding: 7px 14px;
-  border-bottom: 1px solid var(--border);
-  align-items: flex-start;
-  animation: logIn .2s ease;
-}
-
-@keyframes logIn {
-  from { opacity: 0; background: rgba(0,229,255,.05); }
-  to   { opacity: 1; background: transparent; }
-}
-
-.log-time { color: var(--text3); min-width: 48px; flex-shrink: 0; }
-.log-msg  { color: var(--text); flex: 1; }
-.log-state { color: var(--text2); min-width: 90px; text-align: right; flex-shrink: 0; font-size: 11px; }
-
-.log-info  .log-msg { color: var(--text2); }
-.log-warn  .log-msg { color: var(--amber); }
-.log-error .log-msg { color: var(--red); }
-.log-good  .log-msg { color: var(--green); }
-.log-disp  .log-msg { color: var(--accent); }
-
-/* ── TRANSITION FLASH ─────────────────────────────────────────────────────── */
-@keyframes stateFlash {
-  0%   { opacity: 0; transform: scale(1.08); }
-  60%  { opacity: 1; transform: scale(1); }
-  100% { opacity: 1; }
-}
-
-.state-name.flash { animation: stateFlash .35s ease; }
-
-/* ── RESPONSIVE ───────────────────────────────────────────────────────────── */
-@media (max-width: 900px) {
-  .main-grid { grid-template-columns: 1fr; }
-}
+@media(max-width:900px){.main-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 <div class="app">
+<header>
+  <div class="header-left">
+    <h1>Vending Machine <span>Controller</span></h1>
+    <p>5-STATE FSM VISUALIZER — VERILOG HDL — QUESTA 2025.2</p>
+  </div>
+  <div class="header-badges">
+    <span class="badge badge-cyan">5 STATES</span>
+    <span class="badge badge-amber">PRICE = 3 UNITS</span>
+    <span class="badge badge-green" id="badge-cnt">CNT = 10</span>
+    <span class="badge badge-orange">REFUND_PENDING</span>
+  </div>
+</header>
 
-  <!-- HEADER -->
-  <header>
-    <div class="header-left">
-      <h1>Vending Machine <span>Controller</span></h1>
-      <p>FSM VISUALIZER — VERILOG HDL — QUESTA 2025.2</p>
+<div class="main-grid">
+<div class="left-col">
+
+  <!-- STATE -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title"><span>FSM</span> STATE</span>
+      <span class="badge badge-cyan" id="encoding-badge">Q2Q1Q0 = 000</span>
     </div>
-    <div class="header-badges">
-      <span class="badge badge-cyan">4 STATES</span>
-      <span class="badge badge-amber">PRICE = 3 UNITS</span>
-      <span class="badge badge-green" id="badge-cnt">CNT = 10</span>
+    <div class="state-display">
+      <div class="state-label">CURRENT STATE</div>
+      <div class="state-name state-idle" id="state-name">IDLE</div>
+      <div class="state-encoding" id="state-desc">Waiting for coin input</div>
     </div>
-  </header>
-
-  <div class="main-grid">
-
-    <!-- ── LEFT COLUMN ── -->
-    <div class="left-col">
-
-      <!-- STATE PANEL -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>FSM</span> STATE</span>
-          <span class="badge badge-cyan" id="encoding-badge">Q1Q0 = 00</span>
-        </div>
-        <div class="state-display">
-          <div class="state-label">CURRENT STATE</div>
-          <div class="state-name state-idle" id="state-name">IDLE</div>
-          <div class="state-encoding" id="state-desc">Waiting for coin input</div>
-        </div>
-        <div class="acc-row">
-          <span class="acc-label">COIN ACC</span>
-          <div class="acc-bar-wrap">
-            <div class="acc-bar-fill" id="acc-bar" style="width:0%"></div>
-          </div>
-          <span class="acc-value" id="acc-val">0 / 3</span>
-        </div>
-        <div class="cnt-row">
-          <span class="cnt-label">ITEM COUNT</span>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div class="cnt-dots" id="cnt-dots"></div>
-            <span class="cnt-number" id="cnt-number">10</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- OUTPUT SIGNALS -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>OUTPUT</span> SIGNALS</span>
-        </div>
-        <div class="outputs-grid">
-          <div class="output-signal" id="out-D">
-            <div class="output-name">D</div>
-            <div class="output-desc">Dispense</div>
-            <div class="output-val" id="val-D">0</div>
-          </div>
-          <div class="output-signal" id="out-R">
-            <div class="output-name">R</div>
-            <div class="output-desc">Return</div>
-            <div class="output-val" id="val-R">0</div>
-          </div>
-          <div class="output-signal" id="out-E">
-            <div class="output-name">E</div>
-            <div class="output-desc">Error</div>
-            <div class="output-val" id="val-E">0</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CONTROLS -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>INPUT</span> CONTROLS</span>
-        </div>
-
-        <!-- Coin type selector -->
-        <div style="padding:10px 14px 0;">
-          <div style="font-size:10px;color:var(--text3);font-family:var(--font-mono);letter-spacing:.1em;margin-bottom:6px;">SELECT COIN VALUE (M[1:0])</div>
-          <div class="coin-selector" style="padding:0;border:none;">
-            <div class="coin-opt selected" data-m="1" onclick="selectCoin(1)">
-              M=01<div class="coin-opt-label">1 unit</div>
-            </div>
-            <div class="coin-opt" data-m="2" onclick="selectCoin(2)">
-              M=10<div class="coin-opt-label">2 units</div>
-            </div>
-            <div class="coin-opt" data-m="3" onclick="selectCoin(3)">
-              M=11<div class="coin-opt-label">3 units</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Availability toggle -->
-        <div class="toggle-row">
-          <span class="toggle-label">A — AVAILABILITY SENSOR</span>
-          <label class="toggle-switch">
-            <input type="checkbox" id="avail-toggle" checked onchange="toggleAvail()">
-            <span class="toggle-slider"></span>
-          </label>
-          <span id="avail-label" style="font-family:var(--font-mono);font-size:11px;color:var(--green);min-width:36px;">A=1</span>
-        </div>
-
-        <!-- Action buttons -->
-        <div class="controls-grid">
-          <button class="ctrl-btn btn-coin" onclick="pressInput('COIN')">
-            <div class="ctrl-name" style="color:var(--amber)">INSERT COIN</div>
-            <div class="ctrl-desc">Detect coin signal</div>
-            <div class="ctrl-sig">C=1 + M[1:0]</div>
-          </button>
-          <button class="ctrl-btn btn-select" onclick="pressInput('SELECT')">
-            <div class="ctrl-name" style="color:var(--green)">SELECT ITEM</div>
-            <div class="ctrl-desc">Press product button</div>
-            <div class="ctrl-sig">S=1</div>
-          </button>
-          <button class="ctrl-btn btn-cancel" onclick="pressInput('CANCEL')">
-            <div class="ctrl-name" style="color:var(--red)">CANCEL</div>
-            <div class="ctrl-desc">Return coins</div>
-            <div class="ctrl-sig">X=1</div>
-          </button>
-          <button class="ctrl-btn btn-timeout" onclick="pressInput('TIMEOUT')">
-            <div class="ctrl-name" style="color:var(--purple)">TIMEOUT</div>
-            <div class="ctrl-desc">Idle timer expired</div>
-            <div class="ctrl-sig">T=1</div>
-          </button>
-          <button class="ctrl-btn btn-reset full" onclick="pressInput('RESET')">
-            <div class="ctrl-name" style="color:var(--text2)">RESET SYSTEM</div>
-            <div class="ctrl-desc">Restore to initial state (CNT=10, IDLE)</div>
-            <div class="ctrl-sig">RST=1</div>
-          </button>
-        </div>
-      </div>
-
+    <div class="acc-row">
+      <span class="acc-label">COIN ACC</span>
+      <div class="acc-bar-wrap"><div class="acc-bar-fill" id="acc-bar" style="width:0%"></div></div>
+      <span class="acc-value" id="acc-val">0 / 3</span>
     </div>
+    <div class="refund-row" id="refund-row">
+      <span class="refund-label">REFUND R=1</span>
+      <div class="refund-indicator"><div class="refund-pulse" id="refund-pulse"></div></div>
+      <span class="refund-status" id="refund-status">IDLE</span>
+    </div>
+    <div class="cnt-row">
+      <span class="cnt-label">ITEM COUNT</span>
+      <div style="display:flex;align-items:center;gap:9px">
+        <div class="cnt-dots" id="cnt-dots"></div>
+        <span class="cnt-number" id="cnt-number">10</span>
+      </div>
+    </div>
+  </div>
 
-    <!-- ── RIGHT COLUMN ── -->
-    <div class="right-col">
+  <!-- OUTPUTS -->
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title"><span>OUTPUT</span> SIGNALS</span></div>
+    <div class="outputs-grid">
+      <div class="output-signal" id="out-D">
+        <div class="output-name">D</div>
+        <div class="output-desc">Dispense</div>
+        <div class="output-val" id="val-D">0</div>
+        <div class="output-type type-mealy">MEALY</div>
+      </div>
+      <div class="output-signal" id="out-R">
+        <div class="output-name">R</div>
+        <div class="output-desc">Return</div>
+        <div class="output-val" id="val-R">0</div>
+        <div class="output-type type-moore">MOORE ★</div>
+      </div>
+      <div class="output-signal" id="out-E">
+        <div class="output-name">E</div>
+        <div class="output-desc">Error</div>
+        <div class="output-val" id="val-E">0</div>
+        <div class="output-type type-mealy">MEALY</div>
+      </div>
+    </div>
+  </div>
 
-      <!-- FSM DIAGRAM -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>STATE</span> TRANSITION DIAGRAM</span>
-          <span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);">LIVE HIGHLIGHT</span>
-        </div>
-        <div class="fsm-wrap">
-          <svg xmlns="http://www.w3.org/2000/svg" width="784.0000000000001" height="476.00000000000006" viewBox="0 0 560 340">
+  <!-- CONTROLS -->
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title"><span>INPUT</span> CONTROLS</span></div>
+    <div class="coin-selector-wrap">
+      <div class="coin-selector-label">COIN VALUE (M[1:0])</div>
+      <div class="coin-selector">
+        <div class="coin-opt selected" data-m="1" onclick="selectCoin(1)">M=01<div class="coin-opt-label">1 unit</div></div>
+        <div class="coin-opt" data-m="2" onclick="selectCoin(2)">M=10<div class="coin-opt-label">2 units</div></div>
+        <div class="coin-opt" data-m="3" onclick="selectCoin(3)">M=11<div class="coin-opt-label">3 units</div></div>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <span class="toggle-label">A — AVAILABILITY SENSOR</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="avail-toggle" checked onchange="toggleAvail()">
+        <span class="toggle-slider"></span>
+      </label>
+      <span id="avail-label" style="font-family:var(--font-mono);font-size:11px;color:var(--green);min-width:32px;">A=1</span>
+    </div>
+    <div class="controls-grid">
+      <button class="ctrl-btn btn-coin" id="btn-coin" onclick="pressInput('COIN')">
+        <div class="ctrl-name" style="color:var(--amber)">INSERT COIN</div>
+        <div class="ctrl-desc">Detect coin signal</div>
+        <div class="ctrl-sig">C=1 + M[1:0]</div>
+      </button>
+      <button class="ctrl-btn btn-select" id="btn-select" onclick="pressInput('SELECT')">
+        <div class="ctrl-name" style="color:var(--green)">SELECT ITEM</div>
+        <div class="ctrl-desc">Press product button</div>
+        <div class="ctrl-sig">S=1</div>
+      </button>
+      <button class="ctrl-btn btn-cancel" id="btn-cancel" onclick="pressInput('CANCEL')">
+        <div class="ctrl-name" style="color:var(--red)">CANCEL</div>
+        <div class="ctrl-desc">Request refund</div>
+        <div class="ctrl-sig">X=1</div>
+      </button>
+      <button class="ctrl-btn btn-timeout" id="btn-timeout" onclick="pressInput('TIMEOUT')">
+        <div class="ctrl-name" style="color:var(--purple)">TIMEOUT</div>
+        <div class="ctrl-desc">Idle timer expired</div>
+        <div class="ctrl-sig">T=1</div>
+      </button>
+      <button class="ctrl-btn btn-refund full disabled-btn" id="btn-rd" onclick="pressInput('RD')">
+        <div class="ctrl-name" style="color:var(--orange)">REFUND DONE</div>
+        <div class="ctrl-desc">Confirm coins physically returned → releases REFUND_PENDING</div>
+        <div class="ctrl-sig">RD=1 (only active in REFUND_PENDING)</div>
+      </button>
+      <button class="ctrl-btn btn-reset full" onclick="pressInput('RESET')">
+        <div class="ctrl-name" style="color:var(--text2)">RESET SYSTEM</div>
+        <div class="ctrl-desc">Restore to initial state (CNT=10, IDLE)</div>
+        <div class="ctrl-sig">RST=1</div>
+      </button>
+    </div>
+  </div>
+
+</div><!-- /left -->
+
+<div class="right-col">
+
+  <!-- FSM DIAGRAM -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title"><span>STATE</span> TRANSITION DIAGRAM</span>
+      <span style="font-size:10px;color:var(--text3);font-family:var(--font-mono);">LIVE HIGHLIGHT</span>
+    </div>
+    <div class="fsm-wrap">
+      <svg xmlns="http://www.w3.org/2000/svg" width="600" height="360" viewBox="0 0 600 360">
 <defs>
 <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-<path d="M0,0L10,5L0,10L0,0z" fill="#3a5070"/>
-</marker>
-<marker id="arr-active" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-<path d="M0,0L10,5L0,10L0,0z" fill="#00e5ff"/>
+<path d="M 0 0 L 10 5 L 0 10 L 0 0 z" fill="#3a5070"/>
 </marker>
 <filter id="glow">
-<feGaussianBlur stdDeviation="3" result="blur"/>
-<feMerge>
-<feMergeNode in="blur"/>
-<feMergeNode in="SourceGraphic"/>
-</feMerge>
-</filter>
-<filter id="glow-strong">
-<feGaussianBlur stdDeviation="5" result="blur"/>
+<feGaussianBlur stdDeviation="4" result="blur"/>
 <feMerge>
 <feMergeNode in="blur"/>
 <feMergeNode in="SourceGraphic"/>
 </feMerge>
 </filter>
 </defs>
-<path id="tr-idle-coin" d="M156.66995746872436,132.97356610898652 Q156.66995746872436,188.00073318426288 136.66995746872436,215.51060719196477" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="matrix(1 0 0 1 0 0) rotate(-30.5226 146.671 174.24)"/>
-<text x="186.25" y="184.375" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle" transform="matrix(1 0 0 1 0 0)">C=1 or M≠00</text>
-<path id="tr-idle-ready" d="M132.68623370147918,92.37667395178563 Q266.9999984405157,76.61266280714757 390.1266290233252,92.37667395178563" stroke="#3a5070" stroke-width="1.5" fill="none" stroke-dasharray="4 3" marker-end="url(#arr)" transform="rotate(5.59359 261.406 88.4357)"/>
-<text x="280" y="72" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">M=11 (val≥3)</text>
-<path id="tr-idle-err" d="M58.25,87.02Q-12.36,76.72 51.24,116.32" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
-<text x="48" y="62" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">S=1,C=0</text>
-<text x="48" y="73" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">E=1</text>
-<text x="216.25" y="246.125" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle" transform="matrix(1 0 0 1 0 0)">acc≥3</text>
-<path id="tr-coin-idle" d="M134.3974488758983,174.76210657875635 Q95.67683244227783,203.34210657875636 56.961738058918876,178.84210657875636" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(71.5328 95.6813 182.455)"/>
-<text x="60.625" y="191.25" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">X=1 or T=1</text>
-<text x="62.5" y="204.125" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">R=1</text>
-<path id="tr-coin-self" d="M98.75,290.63Q78.75,330.63 108.75,305.63" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
-<path id="tr-ready-disp" d="M 436.6071424739701 181.5228569299834 Q 443.75 194.38 433.75 224.38" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
-<text x="460" y="210" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">S=1,A=1</text>
-<text x="460" y="221" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">D=1</text>
-<path id="tr-ready-idle" d="M 380.98049122384737 116.62164365399552 Q 270.58 146.37 141.25 124.85" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(5.84721 262.5 124.669)"/>
-<text x="258.75" y="124.25" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">X=1 or T=1 → R=1</text>
-<path id="tr-ready-nostock" d="M173.75,230Q284.57,212.14 386.87,180" stroke="#3a5070" stroke-width="1.5" fill="none" stroke-dasharray="3 3" marker-end="url(#arr)" transform="rotate(-7.78005 280.313 205)"/>
-<text x="238.125" y="146.875" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle" transform="matrix(1 0 0 1 0 0)">S=1,A=0</text>
-<text x="241.25" y="158.5" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle" transform="matrix(1 0 0 1 0 0)">E=1,R=1</text>
-<path id="tr-disp-idle" d="M 393.44399043955593 191.09732404005422 Q 295.39 214.38 120.62 188.13" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(31.1367 261.563 194.688)"/>
-<text x="322.5" y="250.625" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle" transform="rotate(25.5617 322.554 247.083)">1 clk cycle → auto</text>
-<g id="node-IDLE" transform="translate(26 -62) matrix(1 0 0 1 -58 48)">
-<circle cx="130" cy="120" r="42" fill="#0a0e14" stroke="#3a5070" stroke-width="2"/>
-<text x="130" y="115" font-family="Syne" font-size="13" font-weight="800" fill="#3a5070" text-anchor="middle">IDLE</text>
-<text x="130" y="130" font-family="Share Tech Mono" font-size="11" fill="#253550" text-anchor="middle">Q1Q0=00</text>
+<path d="M99.77777786552906,118 Q85.66666640341282,171.0588236451149 128.00000078976154,200.00000017881393" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="108" y="165" font-family="Share Tech Mono" font-size="9" fill="#3a5070">C=1 and M≠00</text>
+<path d="M145,78 Q275,18 385,73" stroke="#3a5070" stroke-width="1.5" fill="none" stroke-dasharray="4 3" marker-end="url(#arr)"/>
+<text x="267" y="29" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">C=1 and M=11 (val≥3)</text>
+<path d="M95.99999997019768,51.00000062584877 Q45,35 85,65" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="41" y="37" font-family="Share Tech Mono" font-size="9" fill="#3a5070">S=1,C=0</text>
+<text x="41" y="48" font-family="Share Tech Mono" font-size="9" fill="#3a5070">E=1</text>
+<path d="M203,211 Q283.8831157684326,171.33333444595337 375.9999976158142,143.00000190734863" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="280" y="171" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">acc≥3</text>
+<path d="M181,269 Q197.23529493808746,314 273.0000046491623,314" stroke="#cc8800" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="181" y="318" font-family="Share Tech Mono" font-size="9" fill="#cc8800" transform="matrix(1 0 0 1 0 0)">X=1 or T=1</text>
+<path d="M476.23639727414394,130.3196511656062 Q486.0057590852895,185.20133412761086 479.99384412458454,236.4242382254819" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(-30.9256 479.26 183.372)"/>
+<text x="491" y="175" font-family="Share Tech Mono" font-size="9" fill="#3a5070">S=1,A=1</text>
+<text x="491" y="186" font-family="Share Tech Mono" font-size="9" fill="#3a5070">D=1</text>
+<path d="M413,159 Q387.0000009536743,234.0909125804901 348.0000023841858,277.0000054836273" stroke="#0097aa" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="415" y="233" font-family="Share Tech Mono" font-size="9" fill="#0097aa" text-anchor="middle">X=1 or T=1 </text>
+<path d="M359.18784366152533,146.9853817044067 Q383.4046407429812,212.76719102512297 366.5714127072248,272.4353917560993" stroke="#0097aa" stroke-width="1.5" fill="none" stroke-dasharray="3 3" marker-end="url(#arr)" transform="matrix(1 0 0 1 0 0) rotate(27.9427 366.331 209.71)"/>
+<text x="315" y="209" font-family="Share Tech Mono" font-size="9" fill="#0097aa" transform="matrix(1 0 0 1 0 0)">S=1,A=0</text>
+<text x="315" y="220" font-family="Share Tech Mono" font-size="9" fill="#0097aa" transform="matrix(1 0 0 1 0 0)">E=1</text>
+<path d="M381,121 Q273,164 138,119" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+<text x="453" y="323" font-family="Share Tech Mono" font-size="9" fill="#3a5070" text-anchor="middle">auto 1-cycle</text>
+<path d="M 493.72256976393226 225.48687764479547 Q 139.23493431365583 512.6158827010004 44.90277385883016 154.78064396568334" stroke="#c25000" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(16.1376 261.716 256.547)"/>
+<text x="235" y="239" font-family="Share Tech Mono" font-size="9" fill="#c25000" transform="matrix(1 0 0 1 0 0)">RD=1</text>
+<text x="235" y="250" font-family="Share Tech Mono" font-size="9" fill="#c25000" transform="matrix(1 0 0 1 0 0)">(R=1 Moore)</text>
+<g id="node-IDLE" transform="translate(-27 -6) translate(12 -31)">
+<circle cx="135" cy="120" r="40" fill="#0a0e14" stroke="#3a5070" stroke-width="2"/>
+<text x="135" y="115" font-family="Syne" font-size="13" font-weight="800" fill="#3a5070" text-anchor="middle">IDLE</text>
+<text x="135" y="130" font-family="Share Tech Mono" font-size="10" fill="#253550" text-anchor="middle">000</text>
 </g>
-<g id="node-COIN_INSERTED" transform="translate(-154.375 208.125) matrix(1 0 0 1 65.625 -198.75)">
-<circle cx="225" cy="250" r="46" fill="#0a0e14" stroke="#cc8800" stroke-width="2"/>
-<text x="225" y="243" font-family="Syne" font-size="10" font-weight="800" fill="#cc8800" text-anchor="middle">COIN</text>
-<text x="225" y="256" font-family="Syne" font-size="10" font-weight="800" fill="#cc8800" text-anchor="middle">INSERTED</text>
-<text x="225" y="271" font-family="Share Tech Mono" font-size="10" fill="#8a6000" text-anchor="middle">Q1Q0=01</text>
+<g id="node-COIN_INSERTED" transform="translate(-27 -6) translate(12 -31)">
+<circle cx="175" cy="265" r="44" fill="#0a0e14" stroke="#cc8800" stroke-width="2"/>
+<text x="175" y="258" font-family="Syne" font-size="10" font-weight="800" fill="#cc8800" text-anchor="middle">COIN</text>
+<text x="175" y="270" font-family="Syne" font-size="10" font-weight="800" fill="#cc8800" text-anchor="middle">INSERTED</text>
+<text x="175" y="284" font-family="Share Tech Mono" font-size="10" fill="#8a6000" text-anchor="middle">001</text>
 </g>
-<g id="node-READY" transform="translate(13.75 -15.625)">
-<circle cx="415" cy="150" r="46" fill="#0a0e14" stroke="#0097aa" stroke-width="2"/>
-<text x="415" y="145" font-family="Syne" font-size="13" font-weight="800" fill="#0097aa" text-anchor="middle">READY</text>
-<text x="415" y="162" font-family="Share Tech Mono" font-size="11" fill="#005566" text-anchor="middle">Q1Q0=11</text>
+<g id="node-READY" transform="translate(-27 -6) matrix(1 0 0 1 12 -31)">
+<circle cx="430" cy="150" r="44" fill="#0a0e14" stroke="#0097aa" stroke-width="2"/>
+<text x="430" y="145" font-family="Syne" font-size="13" font-weight="800" fill="#0097aa" text-anchor="middle">READY</text>
+<text x="430" y="162" font-family="Share Tech Mono" font-size="10" fill="#005566" text-anchor="middle">011</text>
 </g>
-<g id="node-DISPENSING">
-<circle cx="420" cy="268" r="42" fill="#0a0e14" stroke="#00aa55" stroke-width="2"/>
-<text x="420" y="261" font-family="Syne" font-size="10" font-weight="800" fill="#00aa55" text-anchor="middle">DISPENSING</text>
-<text x="420" y="277" font-family="Share Tech Mono" font-size="10" fill="#006633" text-anchor="middle">Q1Q0=10</text>
+<g id="node-DISPENSING" transform="translate(20 -27) matrix(1 0 0 1 60 14)">
+<circle cx="445" cy="278" r="40" fill="#0a0e14" stroke="#00aa55" stroke-width="2"/>
+<text x="445" y="272" font-family="Syne" font-size="9" font-weight="800" fill="#00aa55" text-anchor="middle">DISPENSING</text>
+<text x="445" y="286" font-family="Share Tech Mono" font-size="10" fill="#006633" text-anchor="middle">010</text>
 </g>
+<g id="node-REFUND_PENDING" transform="translate(-27 -6) translate(12 -31)">
+<circle cx="325" cy="330" r="40" fill="#0a0e14" stroke="#c25000" stroke-width="2"/>
+<text x="325" y="323" font-family="Syne" font-size="9" font-weight="800" fill="#c25000" text-anchor="middle">REFUND</text>
+<text x="325" y="334" font-family="Syne" font-size="9" font-weight="800" fill="#c25000" text-anchor="middle">PENDING</text>
+<text x="325" y="347" font-family="Share Tech Mono" font-size="10" fill="#7a3000" text-anchor="middle">100 R=1★</text>
+</g>
+<path d="M 228.0142138085432 270.24135282759397 Q 254.10191767687195 137.1085612808024 227.45888442088793 67.03963026960015" stroke="#3a5070" stroke-width="1.5" fill="none" marker-end="url(#arr)" transform="rotate(-42.2146 237.573 175.291)"/>
 </svg>
-        </div>
-      </div>
-
-      <!-- WAVEFORM -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>SIGNAL</span> WAVEFORM</span>
-          <div class="waveform-controls">
-            <button class="wf-btn" onclick="clearWaveform()">CLR</button>
-          </div>
-        </div>
-        <div class="waveform-wrap">
-          <canvas id="waveform" width="800" height="220"></canvas>
-        </div>
-      </div>
-
-      <!-- EVENT LOG -->
-      <div class="panel">
-        <div class="panel-header">
-          <span class="panel-title"><span>TRANSITION</span> LOG</span>
-          <button class="wf-btn" onclick="clearLog()">CLR</button>
-        </div>
-        <div class="log-wrap" id="log-wrap">
-          <div class="log-entry log-info">
-            <span class="log-time">t=0ns</span>
-            <span class="log-msg">System initialized. PRICE=3 units, CNT=10</span>
-            <span class="log-state">IDLE</span>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
-</div>
+
+  <!-- WAVEFORM -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title"><span>SIGNAL</span> WAVEFORM</span>
+      <div class="panel-header-right">
+        <button class="wf-btn" onclick="clearWaveform()">CLR</button>
+      </div>
+    </div>
+    <div class="waveform-wrap">
+      <canvas id="waveform" width="800" height="210"></canvas>
+    </div>
+  </div>
+
+  <!-- LOG -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title"><span>TRANSITION</span> LOG</span>
+      <button class="wf-btn" onclick="clearLog()">CLR</button>
+    </div>
+    <div class="log-wrap" id="log-wrap">
+      <div class="log-entry log-info">
+        <span class="log-time">t=0ns</span>
+        <span class="log-msg">System initialized. 5-state FSM. PRICE=3, CNT=10, REFUND_PENDING=100</span>
+        <span class="log-state">IDLE</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /right -->
+</div><!-- /grid -->
+</div><!-- /app -->
 
 <script>
-// ── FSM STATE MACHINE ─────────────────────────────────────────────────────────
+// ── FSM CORE ──────────────────────────────────────────────────────────────────
+const S_IDLE=0, S_COIN=1, S_READY=3, S_DISP=2, S_REFUND=4;
 
-const STATES = { IDLE: 0, COIN_INSERTED: 1, READY: 3, DISPENSING: 2 };
-const STATE_NAMES = { 0: 'IDLE', 1: 'COIN_INSERTED', 3: 'READY', 2: 'DISPENSING' };
-const STATE_ENCODE = { 0: '00', 1: '01', 3: '11', 2: '10' };
-const STATE_DESC = {
-  0: 'Waiting for coin input',
-  1: 'Coin inserted — accumulating',
-  3: 'Ready — sufficient funds',
-  2: 'Dispensing item...'
+const STATE_NAMES={0:'IDLE',1:'COIN_INSERTED',3:'READY',2:'DISPENSING',4:'REFUND_PENDING'};
+const STATE_ENCODE={0:'000',1:'001',3:'011',2:'010',4:'100'};
+const STATE_DESC={
+  0:'Waiting for coin input',
+  1:'Coin inserted — accumulating',
+  3:'Ready — sufficient funds',
+  2:'Dispensing item...',
+  4:'Returning coins... waiting for RD=1'
 };
-const STATE_CSS = { 0: 'state-idle', 1: 'state-coin', 3: 'state-ready', 2: 'state-disp' };
-const STATE_NODE = { 0: 'IDLE', 1: 'COIN_INSERTED', 3: 'READY', 2: 'DISPENSING' };
+const STATE_CSS={0:'state-idle',1:'state-coin',3:'state-ready',2:'state-disp',4:'state-refund'};
+const STATE_NODE={0:'IDLE',1:'COIN_INSERTED',3:'READY',2:'DISPENSING',4:'REFUND_PENDING'};
 
-const PRICE = 3;
-const INITIAL_CNT = 10;
+const STATE_COLORS={
+  IDLE:         {fill:'#0a0e14',stroke:'#3a5070',text:'#3a5070'},
+  COIN_INSERTED:{fill:'#0a0e14',stroke:'#cc8800',text:'#cc8800'},
+  READY:        {fill:'#0a0e14',stroke:'#0097aa',text:'#0097aa'},
+  DISPENSING:   {fill:'#0a0e14',stroke:'#00aa55',text:'#00aa55'},
+  REFUND_PENDING:{fill:'#0a0e14',stroke:'#c25000',text:'#c25000'},
+};
+const ACTIVE_COLORS={
+  IDLE:         {fill:'rgba(58,80,112,.3)',  stroke:'#6aa0d0',text:'#c8d8f0'},
+  COIN_INSERTED:{fill:'rgba(255,179,0,.18)', stroke:'#ffb300',text:'#ffdd66'},
+  READY:        {fill:'rgba(0,229,255,.18)', stroke:'#00e5ff',text:'#66f0ff'},
+  DISPENSING:   {fill:'rgba(0,255,136,.18)', stroke:'#00ff88',text:'#66ffbb'},
+  REFUND_PENDING:{fill:'rgba(255,124,42,.2)',stroke:'#ff7c2a',text:'#ffaa77'},
+};
 
-let state     = STATES.IDLE;
-let coinAcc   = 0;
-let cnt       = INITIAL_CNT;
-let avail     = true;
-let coinM     = 1;   // selected coin value (1/2/3)
-let simTime   = 0;
+const PRICE=3, INITIAL_CNT=10, MAX_WF=80;
 
-// Outputs
-let D = 0, R = 0, E = 0;
+let state=S_IDLE, coinAcc=0, cnt=INITIAL_CNT, avail=true, coinM=1, simTime=0;
+let D=0,R=0,E=0;
+let wfData=[{time:0,state:0,D:0,R:0,E:0,cnt:INITIAL_CNT,coinAcc:0}];
 
-// ── WAVEFORM DATA ─────────────────────────────────────────────────────────────
-// Each entry: { time, state, D, R, E, cnt, coinAcc }
-const MAX_WF_POINTS = 80;
-let wfData = [{ time: 0, state: 0, D: 0, R: 0, E: 0, cnt: INITIAL_CNT, coinAcc: 0 }];
+function coinValue(m){return (m>=1&&m<=3)?m:1;}
 
-// ── COIN VALUE DECODER ────────────────────────────────────────────────────────
-function coinValue(m) {
-  return m >= 1 && m <= 3 ? m : 1;
-}
+// ── TRANSITION ────────────────────────────────────────────────────────────────
+function transition(input){
+  D=0;R=0;E=0;
 
-// ── FSM TRANSITION ────────────────────────────────────────────────────────────
-function transition(input) {
-  let prevState = state;
-  D = 0; R = 0; E = 0;
-
-  if (input === 'RESET') {
-    state   = STATES.IDLE;
-    coinAcc = 0;
-    cnt     = INITIAL_CNT;
-    simTime = 0;
-    wfData  = [{ time: 0, state: 0, D: 0, R: 0, E: 0, cnt: INITIAL_CNT, coinAcc: 0 }];
-    addLog('info', 'RST=1 — System reset', 'IDLE');
-    updateUI();
-    return;
+  if(input==='RESET'){
+    state=S_IDLE;coinAcc=0;cnt=INITIAL_CNT;simTime=0;
+    wfData=[{time:0,state:0,D:0,R:0,E:0,cnt:INITIAL_CNT,coinAcc:0}];
+    addLog('info','RST=1 — System reset','IDLE');
+    updateUI();return;
   }
 
-  simTime += 10;
+  simTime+=10;
 
-  switch (state) {
-
-    case STATES.IDLE:
-      if (input === 'COIN') {
-        const val = coinValue(coinM);
-        coinAcc = val;
-        if (coinAcc >= PRICE) {
-          state = STATES.READY;
-          addLog('info', `C=1, M=${coinM} (val=${val}) → acc=${coinAcc}≥${PRICE} → READY`, 'READY');
-        } else {
-          state = STATES.COIN_INSERTED;
-          addLog('info', `C=1, M=${coinM} (val=${val}) → acc=${coinAcc} — need more`, 'COIN_INSERTED');
-        }
-      } else if (input === 'SELECT') {
-        E = 1;
-        addLog('error', 'S=1 with no coin in IDLE → ERROR (E=1)', 'IDLE');
-      } else {
-        addLog('warn', `${input} in IDLE — no effect`, 'IDLE');
-      }
+  switch(state){
+    case S_IDLE:
+      if(input==='COIN'){
+        const v=coinValue(coinM); coinAcc=v;
+        if(coinAcc>=PRICE){state=S_READY;addLog('info',`C=1 M=${coinM} (val=${v}) → acc=${coinAcc}≥${PRICE} → READY`,'READY');}
+        else{state=S_COIN;addLog('info',`C=1 M=${coinM} (val=${v}) → acc=${coinAcc} — need more`,'COIN_INSERTED');}
+      } else if(input==='SELECT'){
+        E=1;addLog('error','S=1 no coin in IDLE → E=1 (Mealy)','IDLE');
+      } else {addLog('warn',`${input} in IDLE — no effect`,'IDLE');}
       break;
 
-    case STATES.COIN_INSERTED:
-      if (input === 'COIN') {
-        const val = coinValue(coinM);
-        coinAcc += val;
-        if (coinAcc >= PRICE) {
-          state = STATES.READY;
-          addLog('info', `C=1, M=${coinM} (+${val}) → acc=${coinAcc}≥${PRICE} → READY`, 'READY');
-        } else {
-          addLog('info', `C=1, M=${coinM} (+${val}) → acc=${coinAcc} — need more`, 'COIN_INSERTED');
-        }
-      } else if (input === 'CANCEL' || input === 'TIMEOUT') {
-        R = 1;
-        state   = STATES.IDLE;
-        coinAcc = 0;
-        const why = input === 'CANCEL' ? 'X=1' : 'T=1';
-        addLog('warn', `${why} in COIN_INSERTED → return coins (R=1) → IDLE`, 'IDLE');
-      } else if (input === 'SELECT') {
-        addLog('warn', 'S=1 but not enough coins yet', 'COIN_INSERTED');
-      } else {
-        addLog('warn', `${input} in COIN_INSERTED — no effect`, 'COIN_INSERTED');
-      }
+    case S_COIN:
+      if(input==='COIN'){
+        const v=coinValue(coinM); coinAcc+=v;
+        if(coinAcc>=PRICE){state=S_READY;addLog('info',`+${v} → acc=${coinAcc}≥${PRICE} → READY`,'READY');}
+        else{addLog('info',`+${v} → acc=${coinAcc} — still accumulating`,'COIN_INSERTED');}
+      } else if(input==='CANCEL'||input==='TIMEOUT'){
+        state=S_REFUND;coinAcc=0;
+        addLog('refund',`${input==='CANCEL'?'X=1':'T=1'} → REFUND_PENDING. R=1 held (Moore)`,'REFUND_PENDING');
+      } else if(input==='SELECT'){
+        addLog('warn','S=1 but insufficient coins','COIN_INSERTED');
+      } else {addLog('warn',`${input} in COIN_INSERTED — no effect`,'COIN_INSERTED');}
       break;
 
-    case STATES.READY:
-      if (input === 'SELECT') {
-        if (avail) {
-          D = 1;
-          state   = STATES.DISPENSING;
-          coinAcc = 0;
-          addLog('disp', 'S=1, A=1 → DISPENSING (D=1)', 'DISPENSING');
-          // Auto-advance to IDLE after 1 cycle
-          setTimeout(() => {
-            D = 0;
-            state = STATES.IDLE;
-            if (cnt > 0) cnt--;
-            simTime += 10;
-            addLog('good', `Dispensing complete → IDLE, CNT: ${cnt + 1} → ${cnt}`, 'IDLE');
-            wfData.push({ time: simTime, state: state, D: 0, R: 0, E: 0, cnt, coinAcc: 0 });
-            if (wfData.length > MAX_WF_POINTS) wfData.shift();
+    case S_READY:
+      if(input==='SELECT'){
+        if(avail){
+          D=1;state=S_DISP;coinAcc=0;
+          addLog('disp','S=1, A=1 → DISPENSING (D=1 Mealy)','DISPENSING');
+          setTimeout(()=>{
+            D=0;state=S_IDLE;if(cnt>0)cnt--;simTime+=10;
+            addLog('good',`Dispense complete → IDLE. CNT: ${cnt+1}→${cnt}`,'IDLE');
+            wfData.push({time:simTime,state:S_IDLE,D:0,R:0,E:0,cnt,coinAcc:0});
+            if(wfData.length>MAX_WF)wfData.shift();
             updateUI();
-          }, 600);
+          },600);
         } else {
-          E = 1; R = 1;
-          state   = STATES.IDLE;
-          coinAcc = 0;
-          addLog('error', 'S=1 but A=0 (out of stock) → E=1, R=1, → IDLE', 'IDLE');
+          E=1;state=S_REFUND;coinAcc=0;
+          addLog('error','S=1 A=0 (out of stock) → E=1 Mealy pulse + REFUND_PENDING','REFUND_PENDING');
         }
-      } else if (input === 'CANCEL' || input === 'TIMEOUT') {
-        R = 1;
-        state   = STATES.IDLE;
-        coinAcc = 0;
-        const why = input === 'CANCEL' ? 'X=1' : 'T=1';
-        addLog('warn', `${why} in READY → return coins (R=1) → IDLE`, 'IDLE');
-      } else if (input === 'COIN') {
-        addLog('info', 'Extra coin in READY — ignored (acc already sufficient)', 'READY');
-      }
+      } else if(input==='CANCEL'||input==='TIMEOUT'){
+        state=S_REFUND;coinAcc=0;
+        addLog('refund',`${input==='CANCEL'?'X=1':'T=1'} in READY → REFUND_PENDING. R=1 held (Moore)`,'REFUND_PENDING');
+      } else if(input==='COIN'){
+        addLog('info','Extra coin in READY ignored','READY');
+      } else {addLog('warn',`${input} in READY — no effect`,'READY');}
       break;
 
-    case STATES.DISPENSING:
-      addLog('info', 'Still dispensing — wait for auto-return', 'DISPENSING');
+    case S_DISP:
+      addLog('info','Still dispensing — auto-returns to IDLE','DISPENSING');
+      break;
+
+    case S_REFUND:
+      R=1; // Moore
+      if(input==='RD'){
+        state=S_IDLE;
+        addLog('good','RD=1 — Refund confirmed. R de-asserted → IDLE','IDLE');
+      } else if(input==='CANCEL'||input==='TIMEOUT'){
+        addLog('refund','Already in REFUND_PENDING. R=1 held. Awaiting RD=1','REFUND_PENDING');
+      } else {
+        addLog('refund',`${input} in REFUND_PENDING — R=1 held, awaiting RD=1`,'REFUND_PENDING');
+      }
       break;
   }
 
-  wfData.push({ time: simTime, state, D, R, E, cnt, coinAcc });
-  if (wfData.length > MAX_WF_POINTS) wfData.shift();
+  wfData.push({time:simTime,state,D,R,E,cnt,coinAcc});
+  if(wfData.length>MAX_WF)wfData.shift();
   updateUI();
 
-  // Pulse outputs then clear after visual
-  if (R || E) {
-    setTimeout(() => {
-      R = 0; E = 0;
-      updateOutputSignals();
-      wfData.push({ time: simTime + 5, state, D: 0, R: 0, E: 0, cnt, coinAcc });
-      if (wfData.length > MAX_WF_POINTS) wfData.shift();
-      drawWaveform();
-    }, 400);
+  if(E){
+    setTimeout(()=>{E=0;updateOutputSignals();
+      wfData.push({time:simTime+5,state,D,R:R,E:0,cnt,coinAcc});
+      if(wfData.length>MAX_WF)wfData.shift();drawWaveform();},400);
+  }
+  if(state!==S_REFUND&&R){
+    setTimeout(()=>{R=0;updateOutputSignals();
+      wfData.push({time:simTime+5,state,D:0,R:0,E:0,cnt,coinAcc});
+      if(wfData.length>MAX_WF)wfData.shift();drawWaveform();},400);
   }
 }
 
-// ── UPDATE UI ─────────────────────────────────────────────────────────────────
-function updateUI() {
-  updateStateDisplay();
-  updateOutputSignals();
-  updateFSMDiagram();
-  updateCntDots();
-  drawWaveform();
-  document.getElementById('badge-cnt').textContent = `CNT = ${cnt}`;
+// ── UI UPDATES ────────────────────────────────────────────────────────────────
+function updateUI(){
+  updateStateDisplay();updateOutputSignals();updateFSMDiagram();
+  updateCntDots();updateRefundRow();updateButtonStates();drawWaveform();
+  document.getElementById('badge-cnt').textContent=`CNT = ${cnt}`;
 }
 
-function updateStateDisplay() {
-  const el = document.getElementById('state-name');
-  const name = STATE_NAMES[state];
-  const enc  = STATE_ENCODE[state];
-
-  // Remove old class
-  el.className = 'state-name';
+function updateStateDisplay(){
+  const el=document.getElementById('state-name');
+  el.className='state-name';
   el.classList.add(STATE_CSS[state]);
-
-  // Re-trigger animation
-  void el.offsetWidth;
-  el.classList.add('flash');
-
-  el.textContent = name === 'COIN_INSERTED' ? 'COIN INSR' : name;
-
-  document.getElementById('state-desc').textContent = STATE_DESC[state];
-  document.getElementById('encoding-badge').textContent = `Q1Q0 = ${enc}`;
-
-  // Coin acc bar
-  const pct = Math.min((coinAcc / PRICE) * 100, 100);
-  document.getElementById('acc-bar').style.width = pct + '%';
-  document.getElementById('acc-val').textContent = `${coinAcc} / ${PRICE}`;
+  void el.offsetWidth;el.classList.add('flash');
+  const n=STATE_NAMES[state];
+  el.textContent=n==='COIN_INSERTED'?'COIN INSR':n==='REFUND_PENDING'?'REFUND PEND':n;
+  document.getElementById('state-desc').textContent=STATE_DESC[state];
+  document.getElementById('encoding-badge').textContent=`Q2Q1Q0 = ${STATE_ENCODE[state]}`;
+  const pct=Math.min((coinAcc/PRICE)*100,100);
+  document.getElementById('acc-bar').style.width=pct+'%';
+  document.getElementById('acc-val').textContent=`${coinAcc} / ${PRICE}`;
 }
 
-function updateOutputSignals() {
-  const map = { D: [D, 'out-D', 'val-D'], R: [R, 'out-R', 'val-R'], E: [E, 'out-E', 'val-E'] };
-  for (const [sig, [val, elId, valId]] of Object.entries(map)) {
-    const el = document.getElementById(elId);
-    el.className = 'output-signal';
-    if (val) el.classList.add(`active-${sig}`);
-    document.getElementById(valId).textContent = val;
-  }
+function updateRefundRow(){
+  const inRefund=state===S_REFUND;
+  const pulse=document.getElementById('refund-pulse');
+  const status=document.getElementById('refund-status');
+  pulse.className='refund-pulse'+(inRefund?' active':'');
+  status.className='refund-status'+(inRefund?' active':'');
+  status.textContent=inRefund?'PENDING':'IDLE';
 }
 
-function updateCntDots() {
-  const wrap = document.getElementById('cnt-dots');
-
-  // Hide dots completely if unavailable
-  if (!avail) {
-    wrap.innerHTML = '';
-    document.getElementById('cnt-number').textContent = cnt; // will be 0
-    return;
-  }
-
-  wrap.innerHTML = '';
-  for (let i = 0; i < INITIAL_CNT; i++) {
-    const dot = document.createElement('div');
-    dot.className = 'cnt-dot' + (i >= cnt ? ' empty' : '');
-    wrap.appendChild(dot);
-  }
-
-  document.getElementById('cnt-number').textContent = cnt;
+function updateButtonStates(){
+  const inRefund=state===S_REFUND;
+  const inDisp=state===S_DISP;
+  document.getElementById('btn-rd').className='ctrl-btn btn-refund full'+(inRefund?'':' disabled-btn');
+  document.getElementById('btn-coin').className='ctrl-btn btn-coin'+(inRefund||inDisp?' disabled-btn':'');
+  document.getElementById('btn-select').className='ctrl-btn btn-select'+(inRefund||inDisp?' disabled-btn':'');
+  document.getElementById('btn-cancel').className='ctrl-btn btn-cancel'+(inRefund||inDisp?' disabled-btn':'');
+  document.getElementById('btn-timeout').className='ctrl-btn btn-timeout'+(inRefund||inDisp?' disabled-btn':'');
 }
 
-// ── FSM DIAGRAM HIGHLIGHTING ──────────────────────────────────────────────────
-const STATE_COLORS = {
-  IDLE:          { fill: '#0a0e14', stroke: '#3a5070', text: '#3a5070' },
-  COIN_INSERTED: { fill: '#0a0e14', stroke: '#cc8800', text: '#cc8800' },
-  READY:         { fill: '#0a0e14', stroke: '#0097aa', text: '#0097aa' },
-  DISPENSING:    { fill: '#0a0e14', stroke: '#00aa55', text: '#00aa55' },
-};
-
-const ACTIVE_COLORS = {
-  IDLE:          { fill: 'rgba(58,80,112,.3)',   stroke: '#6aa0d0', text: '#c8d8f0' },
-  COIN_INSERTED: { fill: 'rgba(255,179,0,.15)',  stroke: '#ffb300', text: '#ffdd66' },
-  READY:         { fill: 'rgba(0,229,255,.15)',  stroke: '#00e5ff', text: '#66f0ff' },
-  DISPENSING:    { fill: 'rgba(0,255,136,.15)',  stroke: '#00ff88', text: '#66ffbb' },
-};
-
-let lastHighlightedNode = null;
-
-function updateFSMDiagram() {
-  const currentNodeName = STATE_NODE[state];
-
-  // Reset previous
-  if (lastHighlightedNode && lastHighlightedNode !== currentNodeName) {
-    const prev = STATE_NODE[{ IDLE:0,COIN_INSERTED:1,READY:3,DISPENSING:2 }[lastHighlightedNode] || 0] || lastHighlightedNode;
-    setNodeStyle(lastHighlightedNode, STATE_COLORS[lastHighlightedNode]);
-  }
-
-  // Highlight current
-  setNodeStyle(currentNodeName, ACTIVE_COLORS[currentNodeName], true);
-  lastHighlightedNode = currentNodeName;
-}
-
-function setNodeStyle(nodeName, colors, glow = false) {
-  const g = document.getElementById('node-' + nodeName);
-  if (!g) return;
-  const circle = g.querySelector('circle');
-  const texts  = g.querySelectorAll('text');
-  circle.setAttribute('fill', colors.fill);
-  circle.setAttribute('stroke', colors.stroke);
-  circle.setAttribute('stroke-width', glow ? '2.5' : '2');
-  if (glow) {
-    circle.setAttribute('filter', 'url(#glow)');
-  } else {
-    circle.removeAttribute('filter');
-  }
-  if (texts[0]) texts[0].setAttribute('fill', colors.text);
-}
-
-// ── WAVEFORM CANVAS ───────────────────────────────────────────────────────────
-const SIGNALS = [
-  { key: 'state', label: 'STATE',    type: 'state', color: '#00e5ff' },
-  { key: 'coinAcc', label: 'COIN_ACC', type: 'analog', color: '#ffb300', max: 4 },
-  { key: 'D',     label: 'D',        type: 'digital', color: '#00ff88' },
-  { key: 'R',     label: 'R',        type: 'digital', color: '#00e5ff' },
-  { key: 'E',     label: 'E',        type: 'digital', color: '#ff4466' },
-  { key: 'cnt',   label: 'CNT',      type: 'analog',  color: '#a855f7', max: 10 },
-];
-
-function drawWaveform() {
-  const canvas = document.getElementById('waveform');
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.clientWidth;
-  const H = canvas.clientHeight;
-  canvas.width  = W * dpr;
-  canvas.height = H * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  ctx.fillStyle = '#0a0e14';
-  ctx.fillRect(0, 0, W, H);
-
-  if (wfData.length < 2) {
-    ctx.fillStyle = '#3a5070';
-    ctx.font = '12px Share Tech Mono';
-    ctx.fillText('INSERT COIN OR PRESS A BUTTON TO START', W/2 - 180, H/2);
-    return;
-  }
-
-  const labelW = 72;
-  const plotW  = W - labelW - 12;
-  const nSigs  = SIGNALS.length;
-  const rowH   = Math.floor((H - 20) / nSigs);
-
-  // Grid lines
-  ctx.strokeStyle = '#1e2d45';
-  ctx.lineWidth   = 0.5;
-  const nGrid = 10;
-  for (let i = 0; i <= nGrid; i++) {
-    const x = labelW + (plotW / nGrid) * i;
-    ctx.beginPath();
-    ctx.moveTo(x, 10);
-    ctx.lineTo(x, H - 10);
-    ctx.stroke();
-  }
-
-  // Time axis
-  ctx.fillStyle = '#3a5070';
-  ctx.font = '9px Share Tech Mono';
-  const tMin = wfData[0].time;
-  const tMax = wfData[wfData.length - 1].time || 10;
-  for (let i = 0; i <= nGrid; i++) {
-    const t = tMin + ((tMax - tMin) / nGrid) * i;
-    const x = labelW + (plotW / nGrid) * i;
-    ctx.fillText(t + 'ns', x - 12, H - 1);
-  }
-
-  function timeToX(t) {
-    return labelW + ((t - tMin) / (tMax - tMin || 1)) * plotW;
-  }
-
-  SIGNALS.forEach((sig, si) => {
-    const yTop    = 12 + si * rowH + 2;
-    const yBot    = yTop + rowH - 8;
-    const yMid    = (yTop + yBot) / 2;
-    const sigH    = yBot - yTop;
-
-    // Label
-    ctx.fillStyle = sig.color;
-    ctx.font = 'bold 10px Share Tech Mono';
-    ctx.fillText(sig.label, 4, yMid + 4);
-
-    // Horizontal baseline
-    ctx.strokeStyle = '#1e2d45';
-    ctx.lineWidth = 0.5;
-    ctx.beginPath();
-    ctx.moveTo(labelW, yBot);
-    ctx.lineTo(W - 12, yBot);
-    ctx.stroke();
-
-    ctx.strokeStyle = sig.color;
-    ctx.lineWidth   = 1.5;
-    ctx.shadowColor = sig.color;
-    ctx.shadowBlur  = 3;
-    ctx.beginPath();
-
-    wfData.forEach((pt, i) => {
-      const x = timeToX(pt.time);
-      let y;
-
-      if (sig.type === 'digital') {
-        const val = pt[sig.key];
-        y = val ? yTop + 2 : yBot - 2;
-        if (i === 0) { ctx.moveTo(x, y); return; }
-
-        const prev = wfData[i - 1];
-        const prevVal = prev[sig.key];
-        const prevX   = timeToX(prev.time);
-        const prevY   = prevVal ? yTop + 2 : yBot - 2;
-
-        ctx.lineTo(prevX, prevY);
-        ctx.lineTo(x, prevY);
-        ctx.lineTo(x, y);
-
-      } else if (sig.type === 'analog') {
-        const val = pt[sig.key];
-        const max = sig.max;
-        y = yBot - 2 - ((val / max) * (sigH - 4));
-        if (i === 0) { ctx.moveTo(x, y); return; }
-        const prev = wfData[i - 1];
-        const prevX = timeToX(prev.time);
-        const prevY = yBot - 2 - ((prev[sig.key] / max) * (sigH - 4));
-        ctx.lineTo(prevX, prevY);
-        ctx.lineTo(x, prevY);
-        ctx.lineTo(x, y);
-
-      } else if (sig.type === 'state') {
-        // Draw state as colored bands
-        const stateEnc = STATE_ENCODE[pt.state] || '00';
-        const stateColors = { '00': '#3a5070', '01': '#cc8800', '11': '#0097aa', '10': '#00aa55' };
-        const sc = stateColors[stateEnc] || '#3a5070';
-
-        if (i > 0) {
-          const prev = wfData[i - 1];
-          const prevX = timeToX(prev.time);
-          ctx.save();
-          const bandColor = stateColors[STATE_ENCODE[prev.state]] || '#3a5070';
-          ctx.fillStyle = bandColor + '33';
-          ctx.fillRect(prevX, yTop + 2, x - prevX, sigH - 4);
-          ctx.strokeStyle = bandColor;
-          ctx.lineWidth = 1;
-          ctx.strokeRect(prevX, yTop + 2, x - prevX, sigH - 4);
-
-          // State label
-          const bW = x - prevX;
-          if (bW > 30) {
-            ctx.fillStyle = bandColor;
-            ctx.font = '9px Share Tech Mono';
-            const sname = STATE_NAMES[prev.state];
-            const label = sname === 'COIN_INSERTED' ? 'COIN' : sname;
-            ctx.fillText(label, prevX + 4, yMid + 4);
-          }
-          ctx.restore();
-        }
-        ctx.moveTo(x, yMid);
-        return;
-      }
-    });
-
-    if (sig.type !== 'state') ctx.stroke();
-    ctx.shadowBlur = 0;
+function updateOutputSignals(){
+  [['D',D,'out-D','val-D'],['R',R,'out-R','val-R'],['E',E,'out-E','val-E']].forEach(([sig,val,elId,valId])=>{
+    const el=document.getElementById(elId);
+    el.className='output-signal';if(val)el.classList.add(`active-${sig}`);
+    document.getElementById(valId).textContent=val;
   });
 }
 
-// ── LOG ───────────────────────────────────────────────────────────────────────
-function addLog(type, msg, stateName) {
-  const wrap = document.getElementById('log-wrap');
-  const entry = document.createElement('div');
-  entry.className = `log-entry log-${type}`;
-  entry.innerHTML = `
-    <span class="log-time">t=${simTime}ns</span>
-    <span class="log-msg">${msg}</span>
-    <span class="log-state">${stateName}</span>
-  `;
-  wrap.appendChild(entry);
-  wrap.scrollTop = wrap.scrollHeight;
-
-  // Trim to last 50 entries
-  while (wrap.children.length > 50) wrap.removeChild(wrap.firstChild);
+function updateCntDots(){
+  const wrap=document.getElementById('cnt-dots');
+  wrap.innerHTML='';
+  // When availability A=0, hide the dots and show 0 visually,
+  // but preserve the internal `cnt` value.
+  if(!avail){
+    // no dots shown
+    document.getElementById('cnt-number').textContent='0';
+    return;
+  }
+  for(let i=0;i<INITIAL_CNT;i++){
+    const d=document.createElement('div');
+    d.className='cnt-dot'+(i>=cnt?' empty':'');wrap.appendChild(d);
+  }
+  document.getElementById('cnt-number').textContent=cnt;
 }
 
-function clearLog() {
-  document.getElementById('log-wrap').innerHTML = '';
-  addLog('info', 'Log cleared', STATE_NAMES[state]);
+// ── FSM DIAGRAM HIGHLIGHT ─────────────────────────────────────────────────────
+let lastNode=null;
+function updateFSMDiagram(){
+  const cur=STATE_NODE[state];
+  if(lastNode&&lastNode!==cur)setNodeStyle(lastNode,STATE_COLORS[lastNode],false);
+  setNodeStyle(cur,ACTIVE_COLORS[cur],true);
+  lastNode=cur;
+}
+function setNodeStyle(name,c,glow){
+  const g=document.getElementById('node-'+name);if(!g)return;
+  const circle=g.querySelector('circle');
+  const texts=g.querySelectorAll('text');
+  circle.setAttribute('fill',c.fill);
+  circle.setAttribute('stroke',c.stroke);
+  circle.setAttribute('stroke-width',glow?'2.5':'2');
+  if(glow)circle.setAttribute('filter','url(#glow)');
+  else circle.removeAttribute('filter');
+  if(texts[0])texts[0].setAttribute('fill',c.text);
+}
+
+// ── WAVEFORM ──────────────────────────────────────────────────────────────────
+const SIGNALS=[
+  {key:'state',  label:'STATE',    type:'state',   color:'#00e5ff'},
+  {key:'coinAcc',label:'COIN_ACC', type:'analog',  color:'#ffb300',max:4},
+  {key:'D',      label:'D',        type:'digital', color:'#00ff88'},
+  {key:'R',      label:'R',        type:'digital', color:'#ff7c2a'},
+  {key:'E',      label:'E',        type:'digital', color:'#ff4466'},
+  {key:'cnt',    label:'CNT',      type:'analog',  color:'#a855f7',max:10},
+];
+
+function drawWaveform(){
+  const canvas=document.getElementById('waveform');
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.clientWidth,H=canvas.clientHeight;
+  canvas.width=W*dpr;canvas.height=H*dpr;
+  const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+  ctx.fillStyle='#0a0e14';ctx.fillRect(0,0,W,H);
+
+  if(wfData.length<2){
+    ctx.fillStyle='#3a5070';ctx.font='11px Share Tech Mono';
+    ctx.fillText('PRESS A BUTTON TO BEGIN',W/2-110,H/2);return;
+  }
+
+  const labelW=62,plotW=W-labelW-10;
+  const nSigs=SIGNALS.length,rowH=Math.floor((H-18)/nSigs);
+  const tMin=wfData[0].time,tMax=wfData[wfData.length-1].time||10;
+  const toX=t=>labelW+((t-tMin)/(tMax-tMin||1))*plotW;
+
+  // Grid
+  ctx.strokeStyle='#1e2d45';ctx.lineWidth=.5;
+  for(let i=0;i<=8;i++){const x=labelW+(plotW/8)*i;ctx.beginPath();ctx.moveTo(x,8);ctx.lineTo(x,H-12);ctx.stroke();}
+
+  // Time labels
+  ctx.fillStyle='#3a5070';ctx.font='8px Share Tech Mono';
+  for(let i=0;i<=8;i++){
+    const t=tMin+((tMax-tMin)/8)*i;
+    ctx.fillText(t+'ns',labelW+(plotW/8)*i-10,H-2);
+  }
+
+  const stateColorMap={'000':'#3a5070','001':'#cc8800','011':'#0097aa','010':'#00aa55','100':'#c25000'};
+
+  SIGNALS.forEach((sig,si)=>{
+    const yTop=10+si*rowH+1,yBot=yTop+rowH-7,yMid=(yTop+yBot)/2,sigH=yBot-yTop;
+    ctx.fillStyle=sig.color;ctx.font='bold 9px Share Tech Mono';ctx.fillText(sig.label,2,yMid+4);
+    ctx.strokeStyle='#1e2d45';ctx.lineWidth=.5;
+    ctx.beginPath();ctx.moveTo(labelW,yBot);ctx.lineTo(W-10,yBot);ctx.stroke();
+
+    if(sig.type==='state'){
+      wfData.forEach((pt,i)=>{
+        if(i===0)return;
+        const prev=wfData[i-1];
+        const px=toX(prev.time),cx=toX(pt.time);
+        const enc=STATE_ENCODE[prev.state]||'000';
+        const sc=stateColorMap[enc]||'#3a5070';
+        ctx.save();
+        ctx.fillStyle=sc+'33';ctx.fillRect(px,yTop+1,cx-px,sigH-2);
+        ctx.strokeStyle=sc;ctx.lineWidth=1;ctx.strokeRect(px,yTop+1,cx-px,sigH-2);
+        if(cx-px>24){
+          ctx.fillStyle=sc;ctx.font='8px Share Tech Mono';
+          const sn=STATE_NAMES[prev.state];
+          const sl=sn==='COIN_INSERTED'?'COIN':sn==='REFUND_PENDING'?'REFUND':sn==='DISPENSING'?'DISP':sn;
+          ctx.fillText(sl,px+3,yMid+3);
+        }
+        ctx.restore();
+      });
+      // Last segment
+      const last=wfData[wfData.length-1];
+      const px=toX(last.time),cx=W-10;
+      const enc=STATE_ENCODE[last.state]||'000';
+      const sc=stateColorMap[enc]||'#3a5070';
+      ctx.save();ctx.fillStyle=sc+'33';ctx.fillRect(px,yTop+1,cx-px,sigH-2);
+      ctx.strokeStyle=sc;ctx.lineWidth=1;ctx.strokeRect(px,yTop+1,cx-px,sigH-2);
+      if(cx-px>24){ctx.fillStyle=sc;ctx.font='8px Share Tech Mono';
+        const sn=STATE_NAMES[last.state];
+        const sl=sn==='COIN_INSERTED'?'COIN':sn==='REFUND_PENDING'?'REFUND':sn==='DISPENSING'?'DISP':sn;
+        ctx.fillText(sl,px+3,yMid+3);}
+      ctx.restore();return;
+    }
+
+    ctx.strokeStyle=sig.color;ctx.lineWidth=1.5;ctx.shadowColor=sig.color;ctx.shadowBlur=2;
+    ctx.beginPath();
+    wfData.forEach((pt,i)=>{
+      const x=toX(pt.time);
+      let y;
+      if(sig.type==='digital'){
+        y=pt[sig.key]?yTop+2:yBot-2;
+        if(i===0){ctx.moveTo(x,y);return;}
+        const prev=wfData[i-1];
+        const py=prev[sig.key]?yTop+2:yBot-2;
+        ctx.lineTo(toX(prev.time),py);ctx.lineTo(x,py);ctx.lineTo(x,y);
+      } else {
+        const v=pt[sig.key],m=sig.max;
+        y=yBot-2-((v/m)*(sigH-4));
+        if(i===0){ctx.moveTo(x,y);return;}
+        const prev=wfData[i-1];
+        const py=yBot-2-((prev[sig.key]/m)*(sigH-4));
+        ctx.lineTo(toX(prev.time),py);ctx.lineTo(x,py);ctx.lineTo(x,y);
+      }
+    });
+    ctx.stroke();ctx.shadowBlur=0;
+  });
 }
 
 // ── CONTROLS ──────────────────────────────────────────────────────────────────
-function pressInput(input) { transition(input); }
-
-function selectCoin(m) {
-  coinM = m;
-  document.querySelectorAll('.coin-opt').forEach(el => {
-    el.classList.toggle('selected', parseInt(el.dataset.m) === m);
-  });
-}
-
-let prevCnt = cnt;
-
-function toggleAvail() {
-  avail = document.getElementById('avail-toggle').checked;
-  const lbl = document.getElementById('avail-label');
-
-  lbl.textContent = avail ? 'A=1' : 'A=0';
-  lbl.style.color = avail ? 'var(--green)' : 'var(--red)';
-
-  if (!avail) {
-    prevCnt = cnt; // save current
-    cnt = 0;       // force zero
-  } else {
-    cnt = prevCnt; // restore
-  }
-
+function pressInput(input){transition(input);}
+function selectCoin(m){coinM=m;document.querySelectorAll('.coin-opt').forEach(el=>el.classList.toggle('selected',parseInt(el.dataset.m)===m));}
+function toggleAvail(){
+  avail=document.getElementById('avail-toggle').checked;
+  const lbl=document.getElementById('avail-label');
+  lbl.textContent=avail?'A=1':'A=0';lbl.style.color=avail?'var(--green)':'var(--red)';
+  addLog('info',`Availability sensor A=${avail?1:0}`,STATE_NAMES[state]);
+  // Update count display immediately to reflect A=0 behaviour
   updateCntDots();
-
-  addLog('info', `Availability sensor set to A=${avail ? 1 : 0}`, STATE_NAMES[state]);
 }
+function clearLog(){document.getElementById('log-wrap').innerHTML='';addLog('info','Log cleared',STATE_NAMES[state]);}
+function clearWaveform(){wfData=[{time:simTime,state,D:0,R:0,E:0,cnt,coinAcc}];drawWaveform();}
 
-function clearWaveform() {
-  wfData = [{ time: simTime, state, D: 0, R: 0, E: 0, cnt, coinAcc }];
-  drawWaveform();
+function addLog(type,msg,stateName){
+  const wrap=document.getElementById('log-wrap');
+  const e=document.createElement('div');
+  e.className=`log-entry log-${type}`;
+  e.innerHTML=`<span class="log-time">t=${simTime}ns</span><span class="log-msg">${msg}</span><span class="log-state">${stateName||''}</span>`;
+  wrap.appendChild(e);wrap.scrollTop=wrap.scrollHeight;
+  while(wrap.children.length>60)wrap.removeChild(wrap.firstChild);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-updateUI();
-updateFSMDiagram();
-
-// Resize waveform on window resize
-window.addEventListener('resize', drawWaveform);
+updateUI();updateFSMDiagram();
+window.addEventListener('resize',drawWaveform);
 </script>
 </body>
 </html>
