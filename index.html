@@ -493,8 +493,18 @@ function transition(input){
           D=1;state=S_DISP;coinAcc=0;
           addLog('disp','S=1, A=1 → DISPENSING (D=1 Mealy)','DISPENSING');
           setTimeout(()=>{
-            D=0;state=S_IDLE;if(cnt>0)cnt--;simTime+=10;
+            D=0;state=S_IDLE;
+            if(cnt>0)cnt--;
+            simTime+=10;
             addLog('good',`Dispense complete → IDLE. CNT: ${cnt+1}→${cnt}`,'IDLE');
+            // If count reached zero, automatically disable availability (A=0)
+            if(cnt===0){
+              const availToggle=document.getElementById('avail-toggle');
+              if(availToggle){
+                availToggle.checked=false;
+                toggleAvail();
+              }
+            }
             wfData.push({time:simTime,state:S_IDLE,D:0,R:0,E:0,cnt,coinAcc:0});
             if(wfData.length>MAX_WF)wfData.shift();
             updateUI();
